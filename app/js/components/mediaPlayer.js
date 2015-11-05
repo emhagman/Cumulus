@@ -17,6 +17,8 @@ function getStateFromStores() {
   return {
     'track'      : CurrentTrackStore.getTrack(),
     'audio'      : CurrentTrackStore.getAudio(),
+    'chromecasts'    : CurrentTrackStore.getChromecastPlayers(),
+    'chromecast' : CurrentTrackStore.getChromecast(),
   }
 }
 
@@ -35,6 +37,20 @@ var MediaPlayer = React.createClass({
     menu.append(new MenuItem({ label : 'Logout', click : this.logout }));
     menu.append(new MenuItem({ label : 'Quit', click : this.quit }));
 
+    return menu;
+  },
+
+  chromecastMenu: function () {
+    var menu = new Menu();
+    let _this = this;
+    let chromecasts = this.state.chromecasts || [{name: 'No Devices', disabled: true}];
+    _.each(chromecasts, function (c) {
+      menu.append(new MenuItem({ enabled: !(c.disabled || false), label : c.name, click : _this.playOnChromecast(c) }));
+    });
+    if (chromecasts.length > 0 && this.state.chromecast.active()) {
+      menu.append(new MenuItem({ type  : 'separator' }));
+      menu.append(new MenuItem({ label: 'Disconnect', click: _this.disconnectChromecast()}));
+    }
     return menu;
   },
 
@@ -63,14 +79,15 @@ var MediaPlayer = React.createClass({
   },
 
   playOrPause: function() {
-
-    if (this.state.audio.error)
-      return
-
-    if (this.state.audio.paused)
-      this.play()
-    else
-      this.pause()
+    if (this.state.audio.error && !this.state.chromecast.active()) {
+      return;
+    }
+    if (this.state.audio.paused && !this.state.chromecast.playing) {
+      this.play();
+    }
+    else {
+      this.pause();
+    }
   },
 
   play: function() {
@@ -117,6 +134,18 @@ var MediaPlayer = React.createClass({
     this.menu().popup(remote.getCurrentWindow());
   },
 
+  chromecast: function() {
+    this.chromecastMenu().popup(remote.getCurrentWindow());
+  },
+
+  playOnChromecast: function(player) {
+    Actions.selectChromecast(player);
+  },
+
+  disconnectChromecast: function() {
+    Actions.disconnectChromecast();
+  },
+
   openExternal: function(url) {
     remote.require('shell').openExternal(url)
   },
@@ -155,15 +184,15 @@ var MediaPlayer = React.createClass({
       ? this.state.track.user.avatar_url
       : '')
 
-    var playPause = this.state.audio.paused || this.state.audio.error
+    var playPause = (this.state.audio.paused || this.state.audio.error) && !this.state.chromecast.playing
       ? '\uf198'
       : '\uf191'
 
-    var currentTime = time.formatDuration(this.state.audio.currentTime)
+    var actualTime = !this.state.chromecast.active() ? this.state.audio.currentTime : this.state.chromecast.remoteTime;
+    var currentTime = time.formatDuration(actualTime);
 
     var duration = this.state.timeLeft
-      ? '-' + (time.formatDuration((this.state.track.duration / 1000)
-         - this.state.audio.currentTime))
+      ? '-' + (time.formatDuration((this.state.track.duration / 1000) - actualTime))
       : time.formatDuration(this.state.track.duration / 1000)
 
     var coverStyle = {
@@ -182,7 +211,6 @@ var MediaPlayer = React.createClass({
 
     return (
       <div className={classes}>
-
         <div className={coverClasses} style={coverStyle}>
           <div className="media-player__meta">
             <div className="meta__artist" onClick={this.openPermalinkUser}>
@@ -220,6 +248,9 @@ var MediaPlayer = React.createClass({
               </button>
               <button className="meta__settings" onClick={this.settings}>
                 <i className="fi">{'\uf214'}</i>
+              </button>
+              <button className="meta__chromecast" onClick={this.chromecast}>
+                <img width="16" height="16" src="assets/cast.svg" />
               </button>
             </div>
 

@@ -109,6 +109,19 @@ actions = McFly.createActions({
       })
   },
 
+  selectChromecast: function(player) {
+    return {
+      'actionType' : 'SELECT_CHROMECAST',
+      'player': player
+    }
+  },
+
+  disconnectChromecast: function() {
+    return {
+      'actionType' : 'DISCONNECT_CHROMECAST'
+    }
+  },
+
   /**
    * Playlist
    */
